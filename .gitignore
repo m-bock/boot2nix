@@ -1,0 +1,13 @@
+/target
+/.nrepl-port
+/out
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+.cljs_node_repl
+.cljs_rhino_repl
