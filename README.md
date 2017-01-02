@@ -35,7 +35,7 @@ boot boot2nix
 
 This generates some files inside a `nix` sub directory. There's a default.nix which should describe in a nix expression how to build your project.
 
-It can be tested 
+
 
 ## What happens?
 
