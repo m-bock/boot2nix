@@ -32,5 +32,6 @@ mkLinks
 
 cd $src
 
-boot -t $out
+
+boot build target -d $out
 

@@ -20,6 +20,12 @@
   (boot.pod/with-call-worker
     (boot.aether/resolve-dependency-jars ~(boot.core/get-env))))
 
+(def dependency-jars'
+  (-> (boot.core/get-env)
+      :boot-class-path
+      (s/split #":")
+      (->> (filter #(re-find #"\.m2" %)))))
+
 (defn remove-local-base [s]
   (second (re-matches #"^^.*\.m2/repository/(.*)$" s)))
 
@@ -49,16 +55,17 @@
 (defn is-snapshot [path]
   (some? (re-find #"SNAPSHOT.jar$" path)))
 
-(defn decorate-local-repo-data [local-path]  
-  (let [repo (get-repo-name local-path)
-        jar-path (remove-local-base local-path)
-        [jar-dir jar-file] (path->dir-file jar-path)] 
-    {:repo-url repo
-     :jar-dir jar-dir
-     :jar-file jar-file
-     :pom-file (jar->pom local-path)
-     :sha1 (get-sha1 local-path)
-     :snapshot (is-snapshot local-path)}))
+(defn decorate-local-repo-data [local-jar-path]
+  (let [[sub-dir jar-file] (-> local-jar-path
+                               remove-local-base
+                               path->dir-file)] 
+    {:repo-url (get-repo-name local-jar-path)
+     :sub-dir sub-dir
+     :jar {:file jar-file
+           :sha1 (get-sha1 local-jar-path)}
+     :pom {:file (jar->pom jar-file)
+           :sha1 (get-sha1 (jar->pom local-jar-path))} 
+     :snapshot (is-snapshot local-jar-path)}))
 
 (defn get-call [{:keys [repo-url jar-dir jar-file sha1]}]
   (s/join " " ["register-and-link" repo-url jar-dir jar-file sha1]))

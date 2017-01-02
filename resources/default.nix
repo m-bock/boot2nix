@@ -1,21 +1,26 @@
 { stdenv, fetchurl, boot }:
 with builtins;
 let
-  fetchJar = x:
+  fetch = type: data:
+    let
+      x = getAttr type data;
+    in
     fetchurl {
-      url = x.repoUrl + "/" + x.jarDir + "/" + x.jarFile;
+      url = data.repoUrl + "/" + data.subDir + "/" + x.file;
       sha1 = x.sha1;
     };
   dependencyData = (import ./deps.nix);
 in
 stdenv.mkDerivation {
-  name = "thought2--boot2nix";
-  version = "0.1.0-SNAPSHOT";
+  name = "{{name}}";
+  version = "{{version}}";
   builder = ./builder.sh;
   src = ../.;
-  jarDirs = map (getAttr "jarDir") dependencyData;
-  jarFiles = map (getAttr "jarFile") dependencyData;
-  pomFiles = map (getAttr "pomFile") dependencyData;
-  jars = map fetchJar dependencyData;
+  jars = map (fetch "jar") dependencyData;
+  poms = map (fetch "pom") dependencyData;
+  subDirs = map (getAttr "subDir") dependencyData;
+  jarFiles = map (x: x.jar.file) dependencyData;
+  pomFiles = map (x: x.pom.file) dependencyData;
+
   inherit boot;
 }

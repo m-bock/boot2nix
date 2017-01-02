@@ -15,6 +15,7 @@ stdenv.mkDerivation {
   src = ../.;
   jarDirs = map (getAttr "jarDir") dependencyData;
   jarFiles = map (getAttr "jarFile") dependencyData;
+  pomFiles = map (getAttr "pomFile") dependencyData;
   jars = map fetchJar dependencyData;
   inherit boot;
 }
