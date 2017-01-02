@@ -67,16 +67,6 @@
            :sha1 (get-sha1 (jar->pom local-jar-path))} 
      :snapshot (is-snapshot local-jar-path)}))
 
-(defn get-call [{:keys [repo-url jar-dir jar-file sha1]}]
-  (s/join " " ["register-and-link" repo-url jar-dir jar-file sha1]))
-
-(defn get-calls []
-  (->> dependency-jars
-       (map decorate-local-repo-data)
-       (remove :snapshot)
-       (map get-call)
-       (s/join "\n")))
-
 (defn output [path & [data]]
   (spit (str "nix/" path)
         (render-resource path data)))
@@ -87,18 +77,12 @@
     (->> (map (comp save-read mk-sym) xs)
          (some identity))))
 
-(defn handler []
-  (.mkdir (io/file "nix"))
-  (output "default.nix" {:name (first-def 'project '+project+ '+name+)
-                         :version (first-def 'version '+version+)})
-  (output "builder.sh" {:calls (get-calls)}))
-
 (defn get-dep-data []
   (->> dependency-jars
        (map decorate-local-repo-data)
        (remove :snapshot)))
 
-(defn handler2 []
+(defn handler []
   (.mkdir (io/file "nix"))
   (output "deps.nix" {:dependencies (get-dep-data)})
   (output "default.nix" {:name (first-def 'project '+project+ '+name+)
@@ -106,7 +90,8 @@
   (output "builder.sh")
   (spit "nix/debug.edn" (prn-str (get-dep-data))))
 
-(deftask boot2nix []
+(deftask boot2nix
+  [t build-task VAL str "Task to use for building. Defaults to 'build'"]
   (with-pre-wrap fileset
-    (handler2)
+    (handler)
     fileset))
