@@ -19,7 +19,7 @@ Make sure you have a `boot.properties` inside your project folder:
 boot --version > boot.properties
 ```
 
-Insdie `build.boot` add the task to dependency vector and require it:
+Inside `build.boot` add the task to dependency vector and require it:
 
 ```clj
 (set-env! :dependencies '[[thought2/boot2nix "RELEASE"]])
