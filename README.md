@@ -37,7 +37,7 @@ This generates some files inside a `nix` sub directory. There's a default.nix wh
 
 
 
-## What happens?
+## What happend?
 
 This starts boot with an empty local maven repository. Thus boot will try to fetch all the dependencies that are needed to build your project (including boot and clojure itself). However, the generated nix expression tries to fetch as many dependencies as possible before actually invoking boot. This makes further builds much faster since many files will be cached in the nix store.
 At the moment unfortunately not all dependencies can be pre-fetched, so there will always be some downloading overhead left on the boot side.
