@@ -1,5 +1,5 @@
 (def project 'thought2/boot2nix)
-(def version "0.1.0-SNAPSHOT")
+(def version "0.1.0")
 
 (set-env! :resource-paths #{"resources" "src"}
           :dependencies   '[[de.ubercode.clostache/clostache "1.4.0"]])
