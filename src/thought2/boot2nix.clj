@@ -91,7 +91,7 @@
   (spit "nix/debug.edn" (prn-str (get-dep-data))))
 
 (deftask boot2nix
-  [t build-task VAL str "Task to use for building. Defaults to 'build'"]
+  [t build-task VAL str "Task to generate nix-expressions from your project dependencies"]
   (with-pre-wrap fileset
     (handler)
     fileset))
