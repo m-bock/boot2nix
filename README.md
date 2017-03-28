@@ -2,7 +2,7 @@
 
 [![Clojars Project][1]][2]
 
-A [boot][3] task to generate nix expressions.
+A [Clojure Boot][3] task to generate expressions for the [Nix Package Manager][4].
 
 ## Usage
 
@@ -37,12 +37,14 @@ This generates some files inside a `nix` sub directory. There's a default.nix wh
 
 
 
+
 ## What happend?
 
-This starts boot with an empty local maven repository. Thus boot will try to fetch all the dependencies that are needed to build your project (including boot and clojure itself). However, the generated nix expression tries to fetch as many dependencies as possible before actually invoking boot. This makes further builds much faster since many files will be cached in the nix store.
+This starts boot with an empty local maven repository. Thus boot will try to fetch all the dependencies that are needed to build your project (including boot and clojure itself). However, the generated Nix expression tries to fetch as many dependencies as possible before actually invoking boot. This makes further builds much faster since many files will be cached in the nix store.
 At the moment unfortunately not all dependencies can be pre-fetched, so there will always be some downloading overhead left on the boot side.
 
 
 [1]:https://clojars.org/thought2/boot2nix/latest-version.svg
 [2]:https://clojars.org/thought2/boot2nix
 [3]:https://github.com/boot-clj/boot
+[4]:https://nixos.org/

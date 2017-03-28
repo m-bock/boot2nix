@@ -1,7 +1,9 @@
 (ns thought2.boot2nix
   {:boot/export-tasks true}
+  (:import java.util.Properties)
   (:require [boot.core :as boot :refer [deftask with-pre-wrap]]
             [boot.util :as util]
+            [boot.pod :refer [resolve-dependency-jars]]
             [clojure.string :as s]
             [clojure.java.io :as io]
             [clostache.parser :refer [render-resource]]))
@@ -20,14 +22,32 @@
   (boot.pod/with-call-worker
     (boot.aether/resolve-dependency-jars ~(boot.core/get-env))))
 
-(def dependency-jars'
-  (-> (boot.core/get-env)
-      :boot-class-path
-      (s/split #":")
-      (->> (filter #(re-find #"\.m2" %)))))
+(def extra-dependency-jars
+  (let [props (doto (Properties.)
+                (.load (clojure.java.io/input-stream "boot.properties")))
+        clojure-version (get props "BOOT_CLOJURE_VERSION")
+        boot-version (get props "BOOT_VERSION")
+        boot-modules ["core" "aether" "pod" "worker"]
+        boot-deps (mapcat #(resolve-dependency-jars
+                            {:dependencies [[(symbol (str "boot/" %))
+                                             boot-version]]})
+                          boot-modules)
+        clojure-deps (resolve-dependency-jars
+                      {:dependencies [['org.clojure/clojure clojure-version]]})]
+    (->> (concat clojure-deps boot-deps)
+         (map str))))
+
+(defn get-pom-options []
+  (let [result (atom {})]
+    (boot.core/task-options!
+     boot.task.built-in/pom
+     (fn [opts]
+       (reset! result opts)
+       opts))
+    @result))
 
 (defn remove-local-base [s]
-  (second (re-matches #"^^.*\.m2/repository/(.*)$" s)))
+  (second (re-matches #"^.*\.m2/repository/(.*)$" s)))
 
 (defn path->dir-file [path]
   (let [parts (s/split path #"/")
@@ -50,7 +70,7 @@
          (map (comp second #(re-find #"^.*>(.*)=$" %)))
          (some repo-urls))))
 
-(defn jar->pom [x] (s/replace-first x #"jar$" "pom")) "dsfsd.jar"
+(defn jar->pom [x] (s/replace-first x #"jar$" "pom"))
 
 (defn is-snapshot [path]
   (some? (re-find #"SNAPSHOT.jar$" path)))
@@ -71,27 +91,25 @@
   (spit (str "nix/" path)
         (render-resource path data)))
 
-(defn first-def [& xs]
-  (let [save-read #(try (eval %) (catch Exception e))
-        mk-sym #(symbol (str 'boot.user '/ %))]
-    (->> (map (comp save-read mk-sym) xs)
-         (some identity))))
-
 (defn get-dep-data []
-  (->> dependency-jars
+  (->> (concat dependency-jars extra-dependency-jars) 
        (map decorate-local-repo-data)
-       (remove :snapshot)))
+       (remove :snapshot)
+       (remove #(or (empty? (-> % :jar :sha1))
+                    (empty? (-> % :pom :sha1))))
+       distinct))
 
-(defn handler []
-  (.mkdir (io/file "nix"))
-  (output "deps.nix" {:dependencies (get-dep-data)})
-  (output "default.nix" {:name (first-def 'project '+project+ '+name+)
-                         :version (first-def 'version '+version+)})
-  (output "builder.sh")
-  (spit "nix/debug.edn" (prn-str (get-dep-data))))
+(def pom-opts (get-pom-options))
+
+(defn handler [dir]
+  (.mkdir (io/file dir))
+  (output (str dir "/deps.nix") {:dependencies (get-dep-data)})
+  (output (str dir "/default.nix") (select-keys pom-opts [:name :version]))
+  (output (str dir "/builder.sh")))
 
 (deftask boot2nix
-  [t build-task VAL str "Task to use for building. Defaults to 'build'"]
+  "Task to generate a Nix Expression from your project dependencies."
+  [d dir VAL str "Target Directory, defaults to 'nix'. Is created when not existing."]
   (with-pre-wrap fileset
-    (handler)
+    (handler (or (*opts* :dir) "nix"))
     fileset))
