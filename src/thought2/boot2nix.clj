@@ -3,14 +3,14 @@
   (:import java.util.Properties)
   (:require [boot.core :as boot :refer [deftask with-pre-wrap]]
             [boot.util :as util]
-            [boot.pod :refer [resolve-dependency-jars]]
+            [boot.pod :refer [resolve-dependency-jars]] 
             [clojure.string :as s]
             [clojure.java.io :as io]
             [clostache.parser :refer [render-resource]]))
 
+
 (def repo-urls
-  (let [add-alias #(assoc % "maven" (% "maven-central"))
-        add-alias (fn [alias repo-name m]
+  (let [add-alias (fn [alias repo-name m]
                     (assoc m alias (m repo-name)))]
     (->> (:repositories (boot.core/get-env))
          (map (juxt first (comp :url second)))
@@ -18,33 +18,40 @@
          (add-alias "maven" "maven-central")
          (add-alias "central" "maven-central"))))
 
-(def dependency-jars
-  (boot.pod/with-call-worker
-    (boot.aether/resolve-dependency-jars ~(boot.core/get-env))))
-
-(def extra-dependency-jars
-  (let [props (doto (Properties.)
-                (.load (clojure.java.io/input-stream "boot.properties")))
-        clojure-version (get props "BOOT_CLOJURE_VERSION")
-        boot-version (get props "BOOT_VERSION")
-        boot-modules ["core" "aether" "pod" "worker"]
-        boot-deps (mapcat #(resolve-dependency-jars
-                            {:dependencies [[(symbol (str "boot/" %))
-                                             boot-version]]})
-                          boot-modules)
-        clojure-deps (resolve-dependency-jars
-                      {:dependencies [['org.clojure/clojure clojure-version]]})]
-    (->> (concat clojure-deps boot-deps)
-         (map str))))
-
 (defn get-pom-options []
-  (let [result (atom {})]
-    (boot.core/task-options!
+  (let [result (atom {})]      
+    (boot/task-options!
      boot.task.built-in/pom
      (fn [opts]
        (reset! result opts)
        opts))
     @result))
+
+(defn load-properties [path] 
+  (->> (doto (Properties.)
+         (.load (io/input-stream path)))
+       (map (juxt #(.getKey %) #(.getValue %)))
+       (into {})))
+
+(def dependency-jars
+  (boot.pod/with-call-worker
+    (boot.aether/resolve-dependency-jars ~(boot.core/get-env))))
+
+(defn dependency-vector [a b version]
+  [(symbol (str a "/" b)) version])
+
+(def extra-dependency-jars
+  (let [props           (load-properties "boot.properties")
+        clojure-version (get props "BOOT_CLOJURE_VERSION")
+        boot-version    (get props "BOOT_VERSION")
+        boot-modules    ["core" "aether" "pod" "worker"]] 
+    (map str
+         (resolve-dependency-jars
+          {:dependencies
+           (conj 
+            (map #(dependency-vector "boot" % boot-version)
+                 boot-modules)
+            ['org.clojure/clojure clojure-version])}))))
 
 (defn remove-local-base [s]
   (second (re-matches #"^.*\.m2/repository/(.*)$" s)))
@@ -70,7 +77,8 @@
          (map (comp second #(re-find #"^.*>(.*)=$" %)))
          (some repo-urls))))
 
-(defn jar->pom [x] (s/replace-first x #"jar$" "pom"))
+(defn jar->pom [x]
+  (s/replace-first x #"jar$" "pom"))
 
 (defn is-snapshot [path]
   (some? (re-find #"SNAPSHOT.jar$" path)))
@@ -80,15 +88,15 @@
                                remove-local-base
                                path->dir-file)] 
     {:repo-url (get-repo-name local-jar-path)
-     :sub-dir sub-dir
-     :jar {:file jar-file
-           :sha1 (get-sha1 local-jar-path)}
-     :pom {:file (jar->pom jar-file)
-           :sha1 (get-sha1 (jar->pom local-jar-path))} 
+     :sub-dir  sub-dir
+     :jar      {:file jar-file
+                :sha1 (get-sha1 local-jar-path)}
+     :pom      {:file (jar->pom jar-file)
+                :sha1 (get-sha1 (jar->pom local-jar-path))} 
      :snapshot (is-snapshot local-jar-path)}))
 
-(defn output [path & [data]]
-  (spit (str "nix/" path)
+(defn output [dir path & [data]]
+  (spit (str dir "/" path)
         (render-resource path data)))
 
 (defn get-dep-data []
@@ -99,17 +107,18 @@
                     (empty? (-> % :pom :sha1))))
        distinct))
 
-(def pom-opts (get-pom-options))
-
 (defn handler [dir]
-  (.mkdir (io/file dir))
-  (output (str dir "/deps.nix") {:dependencies (get-dep-data)})
-  (output (str dir "/default.nix") (select-keys pom-opts [:name :version]))
-  (output (str dir "/builder.sh")))
+  (let [pom-opts (get-pom-options)]
+    (.mkdir (io/file dir))
+    (output dir "deps.nix"    {:dependencies (get-dep-data)})
+    (output dir "default.nix" {:name         (pom-opts :project)
+                               :version      (pom-opts :version)})
+    (output dir "builder.sh")))
 
 (deftask boot2nix
   "Task to generate a Nix Expression from your project dependencies."
-  [d dir VAL str "Target Directory, defaults to 'nix'. Is created when not existing."]
-  (with-pre-wrap fileset
+  [d dir VAL str
+   "Target Directory, defaults to 'nix'. Is created when not existing."]
+  (with-pre-wrap fileset    
     (handler (or (*opts* :dir) "nix"))
     fileset))
