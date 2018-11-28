@@ -70,12 +70,15 @@
 
 (defn get-repo-name [local-path]
   (let [[base fname] (path->dir-file local-path)
-        file (str base "/" "/_maven.repositories")]
-    (->> (slurp file)
-         s/split-lines
-         (remove #(s/starts-with? % "#"))
-         (map (comp second #(re-find #"^.*>(.*)=$" %)))
-         (some repo-urls))))
+        possible-files [(str base "/_remote.repositories")
+                        (str base "/_maven.repositories")]
+        file (first (filter #(.exists (io/file %)) possible-files))]
+    (when file
+      (->> (slurp file)
+           s/split-lines
+           (remove #(s/starts-with? % "#"))
+           (map (comp second #(re-find #"^.*>(.*)=$" %)))
+           (some repo-urls)))))
 
 (defn jar->pom [x]
   (s/replace-first x #"jar$" "pom"))
